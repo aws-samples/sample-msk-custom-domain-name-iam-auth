@@ -341,7 +341,11 @@ Resources:
           service_domain=$(echo "$bootstrap_server" | tr ',' '\n' | head -n 1 | cut -d":" -f 1 | sed 's/^boot-[^.]*\.//')
           for b_id in $broker_ids; do
             # Get MSK listeners configuration
-            msk_listeners=$(bin/kafka-configs.sh --bootstrap-server "$bootstrap_server" --command-config client-iam.properties --entity-type brokers --entity-name "$b_id" --describe --all 2>/dev/null | grep " listeners=" | cut -d'=' -f2 | cut -d' ' -f1)
+            # If advertised is already configured, use that, as MSK configures multi-VPC connectivity with advertised.listeners, otherwise take the listeners config
+            msk_listeners=$(bin/kafka-configs.sh --bootstrap-server "$bootstrap_server" --command-config client-iam.properties --entity-type brokers --entity-name "$b_id" --describe --all 2>/dev/null | grep " advertised.listeners=" | cut -d'=' -f2 | cut -d' ' -f1)
+            if [ -z "$msk_listeners" ] || [ "$msk_listeners" == "null" ]; then
+              msk_listeners=$(bin/kafka-configs.sh --bootstrap-server "$bootstrap_server" --command-config client-iam.properties --entity-type brokers --entity-name "$b_id" --describe --all 2>/dev/null | grep " listeners=" | cut -d'=' -f2 | cut -d' ' -f1)
+            fi 
           
             # Replace CLIENT_IAM protocol with custom domain
             updated_listeners=$(echo "$msk_listeners" | sed "s/CLIENT_IAM:[^,]*/CLIENT_IAM:\/\/b-$b_id.$CUSTOM_DOMAIN:900$b_id/g")
